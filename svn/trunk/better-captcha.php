@@ -26,7 +26,7 @@ function better_capt_menus() {
 //add the settings
 function better_capt_settings() {
 	register_setting('better-captcha','better-captcha-settings');
-	add_settings_section('better-captcha-account', __('hCaptcha Account', 'better-capt-text'), 'better_capt_section', 'better-captcha');
+	add_settings_section('better-captcha-account', __('hCaptcha Account', 'better-capt-text'), 'better_capt_account', 'better-captcha');
 	add_settings_field('better-captcha-site-key', __('hCaptcha Site Key', 'better-capt-text'), 'better_capt_site_key', 'better-captcha', 'better-captcha-account');
 	add_settings_field('better-captcha-secret-key', __('hCaptcha Secret Key', 'better-capt-text'), 'better_capt_secret_key', 'better-captcha', 'better-captcha-account');
 }
@@ -122,7 +122,7 @@ function better_capt_badge_maria() {
 //define output for settings section
 function better_capt_account() {
   echo '<hr>';
-  // TODO: referral link
+  echo '<p>Please sign up for a free <a href="https://bettersecurity.co/hcaptcha/" target="_blank">hCaptcha</a> account to get your site key and secret key.</p>';
 }
 
 //defined output for settings
