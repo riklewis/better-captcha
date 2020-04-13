@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name:  Better Captcha
-Description:  Stop bad bots...
-Version:      1.6
+Description:  Stop bad bots from attacking your forms using hCaptcha
+Version:      1.0
 Author:       Better Security
 Author URI:   https://bettersecurity.co
 License:      GPL3
