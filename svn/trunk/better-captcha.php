@@ -29,12 +29,16 @@ function better_capt_settings() {
 	add_settings_section('better-captcha-account', __('hCaptcha Account', 'better-capt-text'), 'better_capt_account', 'better-captcha');
 	add_settings_field('better-captcha-site-key', __('hCaptcha Site Key', 'better-capt-text'), 'better_capt_site_key', 'better-captcha', 'better-captcha-account');
 	add_settings_field('better-captcha-secret-key', __('hCaptcha Secret Key', 'better-capt-text'), 'better_capt_secret_key', 'better-captcha', 'better-captcha-account');
+	add_settings_field('better-captcha-theme', __('hCaptcha Theme', 'better-capt-text'), 'better_capt_theme', 'better-captcha', 'better-captcha-account');
+	add_settings_field('better-captcha-size', __('hCaptcha Size', 'better-capt-text'), 'better_capt_size', 'better-captcha', 'better-captcha-account');
 }
 
 //allow the settings to be stored
 add_filter('whitelist_options', function($whitelist_options) {
   $whitelist_options['better-captcha'][] = 'better-captcha-site-key';
   $whitelist_options['better-captcha'][] = 'better-captcha-secret-key';
+  $whitelist_options['better-captcha'][] = 'better-captcha-theme';
+  $whitelist_options['better-captcha'][] = 'better-captcha-size';
   return $whitelist_options;
 });
 
@@ -128,27 +132,36 @@ function better_capt_account() {
 //defined output for settings
 function better_capt_site_key() {
 	$settings = get_option('better-captcha-settings');
-	$value = $settings['better-captcha-site-key'];
-  echo '<input id="better-captcha-site-key" name="better-captcha-settings[better-captcha-site-key]" type="text" value="' . $value . '">';
+	$value = $settings['better-captcha-site-key'] ?: '';
+  echo '<input id="better-captcha-site-key" name="better-captcha-settings[better-captcha-site-key]" type="text" value="' . $value . '" size="50">';
 }
 
 //defined output for settings
 function better_capt_secret_key() {
 	$settings = get_option('better-captcha-settings');
-	$value = $settings['better-captcha-secret-key'];
-  echo '<input id="better-captcha-secret-key" name="better-captcha-settings[better-captcha-secret-key]" type="password" value="' . $value . '">';
+	$value = $settings['better-captcha-secret-key'] ?: '';
+  echo '<input id="better-captcha-secret-key" name="better-captcha-settings[better-captcha-secret-key]" type="password" value="' . $value . '" size="50">';
 }
 
 //defined output for settings
-/*function better_capt_algorithm() {
+function better_capt_theme() {
 	$settings = get_option('better-captcha-settings');
-	$value = ($settings['better-captcha-algorithm'] ?: "BCRYPT");
-  echo '<select id="better-captcha-algorithm" name="' . 'better-captcha-settings[better-captcha-algorithm]">';
-  better_capt_create_option($value,"BCRYPT",__("Good", 'better-capt-text') . " (Bcrypt) - " . __("default", 'better-capt-text'),true);
-  better_capt_create_option($value,"ARGON2I",__("Better", 'better-capt-text') . " (Argon2i) - " . __("requires PHP 7.2+", 'better-capt-text'),better_capt_check_algorithm('PASSWORD_ARGON2I'));
-  better_capt_create_option($value,"ARGON2ID",__("Best", 'better-capt-text') . " (Argon2id) - " . __("requires PHP 7.3+", 'better-capt-text'),better_capt_check_algorithm('PASSWORD_ARGON2ID'));
-  echo '</select><br><small><em>' . __('This takes affect when a user next logs in or changes their password', 'better-capt-text') . '</em></small>';
-}*/
+	$value = $settings['better-captcha-theme'] ?: 'light';
+  echo '<select id="better-captcha-theme" name="better-captcha-settings[better-captcha-theme]">';
+  better_capt_create_option($value,"light",__("Light theme", 'better-capt-text'),true);
+  better_capt_create_option($value,"dark",__("Dark theme", 'better-capt-text'),true);
+  echo '</select>';
+}
+
+//defined output for settings
+function better_capt_size() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-size'] ?: 'normal';
+  echo '<select id="better-captcha-size" name="better-captcha-settings[better-captcha-size]">';
+  better_capt_create_option($value,"normal",__("Normal size", 'better-capt-text'),true);
+  better_capt_create_option($value,"compact",__("Compact size", 'better-capt-text'),true);
+  echo '</select>';
+}
 
 function better_capt_create_option($def,$val,$rep,$boo) {
   echo '  <option value="' . $val . '"' . ($def===$val ? ' selected' : '') . ($boo ? '' : ' disabled') . '>' . $rep . '</option>';
@@ -157,6 +170,58 @@ function better_capt_create_option($def,$val,$rep,$boo) {
 //add actions
 add_action('admin_menu','better_capt_menus');
 add_action('admin_init','better_capt_settings');
+
+/*
+--------------------- Display captcha challenges ---------------------
+*/
+
+//include external script
+function better_capt_scripts() {
+  wp_enqueue_script('hcaptcha-script', 'https://hcaptcha.com/1/api.js', array(), false, true);
+}
+add_action('wp_enqueue_scripts', 'better_capt_scripts');
+add_action('login_enqueue_scripts', 'better_capt_scripts');
+
+//display captcha challenge
+function better_capt_display_hcaptcha() {
+  $settings = get_option('better-captcha-settings');
+  $skey = $settings['better-captcha-site-key'] ?: '';
+  $sssh = $settings['better-captcha-secret-key'] ?: '';
+  $them = $settings['better-captcha-theme'] ?: 'light';
+  $size = $settings['better-captcha-size'] ?: 'normal';
+  return ($skey!=='' && $sssh!=='' ? '<div class="better-captcha h-captcha" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>' : '');
+}
+
+/*
+--------------------- Login Form ---------------------
+*/
+
+function better_capt_display_login_form() {
+  $capt = better_capt_display_hcaptcha();
+  if($capt!=='') {
+    echo $capt . wp_nonce_field('better_captcha_login', 'better_captcha_nonce', true, false);
+  }
+}
+add_filter('login_form', 'better_capt_display_login_form');
+
+function better_capt_verify_login_form($user, $password) {
+  if(isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'],'better_captcha_login') && isset($_POST['h-captcha-response'])) {
+    $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
+    if($resp!=='') {
+      $settings = get_option('better-captcha-settings');
+      $sssh = $settings['better-captcha-secret-key'] ?: '';
+      if($sssh!=='') {
+        $body = wp_remote_get('https://hcaptcha.com/siteverify?secret=' . $sssh . '&response=' . $resp);
+        $data = json_decode($body["body"], true);
+        if($data["success"]==true) {
+          return $user;
+        } 
+      }
+    }
+  } 
+  return new WP_Error(__("Captcha Invalid", 'better-capt-text'), __("<strong>ERROR</strong>: Invalid Captcha", 'better-capt-text'));   
+}
+add_filter('wp_authenticate_user', 'better_capt_verify_login_form', 10, 2);
 
 /*
 --------------------- Add links to plugins page ---------------------
@@ -168,18 +233,9 @@ function better_capt_links($links) {
 	return $links;
 }
 
-//show Pro link
-/*function better_capt_meta($links, $file) {
-	if($file===plugin_basename(__FILE__)) {
-		$links[] = '<a href="plugin-install.php?tab=plugin-information&plugin=better-security-pro&TB_iframe=true&width=600&height=550"><em><strong>' . __('Check out Better Security Pro', 'better-capt-text') . '</strong></em></a>';
-	}
-	return $links;
-}*/
-
 //add actions
 if(is_admin()) {
   add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'better_capt_links');
-  add_filter('plugin_row_meta', 'better_capt_meta', 10, 2);
 }
 
 /*
