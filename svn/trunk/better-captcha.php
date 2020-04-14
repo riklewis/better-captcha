@@ -37,6 +37,7 @@ function better_capt_settings() {
   add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');  
   add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');  
   add_settings_field('better-captcha-place-regis', __('Register Form', 'better-capt-text'), 'better_capt_place_regis', 'better-captcha', 'better-captcha-places');  
+  add_settings_field('better-captcha-place-comme', __('Comment Form', 'better-capt-text'), 'better_capt_place_comme', 'better-captcha', 'better-captcha-places');  
   // TODO: add more
 }
 
@@ -49,6 +50,7 @@ add_filter('whitelist_options', function($whitelist_options) {
   $whitelist_options['better-captcha'][] = 'better-captcha-place-login';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-lostp';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-regis';
+  $whitelist_options['better-captcha'][] = 'better-captcha-place-comme';
   // TODO: add more
   return $whitelist_options;
 });
@@ -204,6 +206,14 @@ function better_capt_place_regis() {
   echo '<input id="better-captcha-place-regis" name="better-captcha-settings[better-captcha-place-regis]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
 }
 
+//defined output for settings
+function better_capt_place_comme() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-place-comme'] ?: 'YES';
+  echo '<input name="better-captcha-settings[better-captcha-place-comme]" type="hidden" value="NO">';
+  echo '<input id="better-captcha-place-comme" name="better-captcha-settings[better-captcha-place-comme]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
+}
+
 // TODO: add more
 
 //add actions
@@ -247,6 +257,13 @@ function better_capt_init() {
       add_filter('registration_errors', 'better_capt_verify_captcha');
     }    
 
+    //comment form
+    if(($settings['better-captcha-place-comme'] ?: 'YES')==='YES') {
+      $enqu = true;
+      add_filter('comment_form_after_fields', 'better_capt_display_captcha');
+      add_filter('pre_comment_approved', 'better_capt_verify_captcha');
+    }        
+
     // TODO: add more
 
     //include external script
@@ -275,6 +292,9 @@ function better_capt_nonce_name() {
     case 'register_form': case 'registration_errors':
       $name = 'regis';
       break;
+    case 'comment_form_after_fields': case 'pre_comment_approved':
+      $name = 'comme';
+      break;
     // TODO: add more
   }
   return 'better_captcha_' . $name;
@@ -295,7 +315,7 @@ function better_capt_display_captcha() {
 
 //verify the captcha value
 function better_capt_verify_captcha($par1) {
-  if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'], better_capt_nonce_name())) {
+  if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce(sanitize_text_field($_POST['better_captcha_nonce']), better_capt_nonce_name())) {
     $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
     if($resp!=='') {
       $settings = get_option('better-captcha-settings');
@@ -311,12 +331,14 @@ function better_capt_verify_captcha($par1) {
   } 
 
   //return error (depending on filter)
+  $code = 'captcha_invalid';
+  $mess = __("<strong>Error</strong>: Captcha invalid - are you human?", 'better-capt-text');
   switch(better_capt_nonce_name()) {
-    case 'regis':
-      $par1->add('captcha_invalid', __("<strong>Error</strong>: Invalid Captcha", 'better-capt-text'));
+    case 'regis': //registration form
+      $par1->add($code, $mess);
       return $par1;
   }
-  return new WP_Error(__("Captcha Invalid", 'better-capt-text'), __("<strong>Error</strong>: Invalid Captcha", 'better-capt-text'));   
+  return new WP_Error($code, $mess, 403); //other forms (eg. login) 
 }
 
 /*
