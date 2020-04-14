@@ -36,6 +36,7 @@ function better_capt_settings() {
   add_settings_section('better-captcha-places', __('Show Captcha', 'better-capt-text'), 'better_capt_places', 'better-captcha');
   add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');  
   add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');  
+  add_settings_field('better-captcha-place-regis', __('Register Form', 'better-capt-text'), 'better_capt_place_regis', 'better-captcha', 'better-captcha-places');  
   // TODO: add more
 }
 
@@ -47,6 +48,7 @@ add_filter('whitelist_options', function($whitelist_options) {
   $whitelist_options['better-captcha'][] = 'better-captcha-size';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-login';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-lostp';
+  $whitelist_options['better-captcha'][] = 'better-captcha-place-regis';
   // TODO: add more
   return $whitelist_options;
 });
@@ -193,6 +195,15 @@ function better_capt_place_lostp() {
   echo '<input name="better-captcha-settings[better-captcha-place-lostp]" type="hidden" value="NO">';
   echo '<input id="better-captcha-place-lostp" name="better-captcha-settings[better-captcha-place-lostp]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
 }
+
+//defined output for settings
+function better_capt_place_regis() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-place-regis'] ?: 'YES';
+  echo '<input name="better-captcha-settings[better-captcha-place-regis]" type="hidden" value="NO">';
+  echo '<input id="better-captcha-place-regis" name="better-captcha-settings[better-captcha-place-regis]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
+}
+
 // TODO: add more
 
 //add actions
@@ -229,6 +240,13 @@ function better_capt_init() {
       add_filter('allow_password_reset', 'better_capt_verify_captcha');
     }    
 
+    //register form
+    if(($settings['better-captcha-place-regis'] ?: 'YES')==='YES') {
+      $enqu = true;
+      add_filter('register_form', 'better_capt_display_captcha');
+      add_filter('registration_errors', 'better_capt_verify_captcha');
+    }    
+
     // TODO: add more
 
     //include external script
@@ -254,6 +272,10 @@ function better_capt_nonce_name() {
     case 'lostpassword_form': case 'allow_password_reset':
       $name = 'lostp';
       break;
+    case 'register_form': case 'registration_errors':
+      $name = 'regis';
+      break;
+    // TODO: add more
   }
   return 'better_captcha_' . $name;
 }
@@ -273,7 +295,7 @@ function better_capt_display_captcha() {
 
 //verify the captcha value
 function better_capt_verify_captcha($par1) {
-  if(isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'], better_capt_nonce_name()) && isset($_POST['h-captcha-response'])) {
+  if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'], better_capt_nonce_name())) {
     $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
     if($resp!=='') {
       $settings = get_option('better-captcha-settings');
@@ -282,12 +304,19 @@ function better_capt_verify_captcha($par1) {
         $body = wp_remote_get('https://hcaptcha.com/siteverify?secret=' . $sssh . '&response=' . $resp);
         $data = json_decode($body["body"], true);
         if($data["success"]==true) {
-          return $par1;
+          return $par1; //captcha verified successfully
         } 
       }
     }
   } 
-  return new WP_Error(__("Captcha Invalid", 'better-capt-text'), __("<strong>ERROR</strong>: Invalid Captcha", 'better-capt-text'));   
+
+  //return error (depending on filter)
+  switch(better_capt_nonce_name()) {
+    case 'regis':
+      $par1->add('captcha_invalid', __("<strong>Error</strong>: Invalid Captcha", 'better-capt-text'));
+      return $par1;
+  }
+  return new WP_Error(__("Captcha Invalid", 'better-capt-text'), __("<strong>Error</strong>: Invalid Captcha", 'better-capt-text'));   
 }
 
 /*
