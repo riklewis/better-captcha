@@ -34,7 +34,9 @@ function better_capt_settings() {
   add_settings_field('better-captcha-size', __('hCaptcha Size', 'better-capt-text'), 'better_capt_size', 'better-captcha', 'better-captcha-account');
   
   add_settings_section('better-captcha-places', __('Show Captcha', 'better-capt-text'), 'better_capt_places', 'better-captcha');
-	add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');  
+  add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');  
+  add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');  
+  // TODO: add more
 }
 
 //allow the settings to be stored
@@ -44,6 +46,8 @@ add_filter('whitelist_options', function($whitelist_options) {
   $whitelist_options['better-captcha'][] = 'better-captcha-theme';
   $whitelist_options['better-captcha'][] = 'better-captcha-size';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-login';
+  $whitelist_options['better-captcha'][] = 'better-captcha-place-lostp';
+  // TODO: add more
   return $whitelist_options;
 });
 
@@ -182,6 +186,15 @@ function better_capt_place_login() {
   echo '<input id="better-captcha-place-login" name="better-captcha-settings[better-captcha-place-login]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
 }
 
+//defined output for settings
+function better_capt_place_lostp() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-place-lostp'] ?: 'YES';
+  echo '<input name="better-captcha-settings[better-captcha-place-lostp]" type="hidden" value="NO">';
+  echo '<input id="better-captcha-place-lostp" name="better-captcha-settings[better-captcha-place-lostp]" type="checkbox" value="YES"' . ($value==='YES' ? ' checked' : '') . '>';
+}
+// TODO: add more
+
 //add actions
 add_action('admin_menu','better_capt_menus');
 add_action('admin_init','better_capt_settings');
@@ -200,12 +213,27 @@ function better_capt_init() {
   $settings = get_option('better-captcha-settings');
   $skey = $settings['better-captcha-site-key'] ?: '';
   $sssh = $settings['better-captcha-secret-key'] ?: '';
+  $enqu = false;
   if($skey!=='' && $sssh!=='') {
     //login form
     if(($settings['better-captcha-place-login'] ?: 'YES')==='YES') {
       add_action('login_enqueue_scripts', 'better_capt_scripts');
-      add_filter('login_form', 'better_capt_display_login_form');
-      add_filter('wp_authenticate_user', 'better_capt_verify_login_form', 10, 2);
+      add_filter('login_form', 'better_capt_display_captcha');
+      add_filter('wp_authenticate_user', 'better_capt_verify_captcha');
+    }
+
+    //lost password form
+    if(($settings['better-captcha-place-lostp'] ?: 'YES')==='YES') {
+      $enqu = true;
+      add_filter('lostpassword_form', 'better_capt_display_captcha');
+      add_filter('allow_password_reset', 'better_capt_verify_captcha');
+    }    
+
+    // TODO: add more
+
+    //include external script
+    if($enqu) {
+      add_action('wp_enqueue_scripts', 'better_capt_scripts');
     }
   }
 }
@@ -215,31 +243,37 @@ add_action('init', 'better_capt_init', 0);
 function better_capt_scripts() {
   wp_enqueue_script('hcaptcha-script', 'https://hcaptcha.com/1/api.js', array(), false, true);
 }
-add_action('wp_enqueue_scripts', 'better_capt_scripts');
 
-//display captcha challenge
-function better_capt_display_hcaptcha() {
+//generate nonce name
+function better_capt_nonce_name() {
+  $name = 'nonce';
+  switch(current_filter()) {
+    case 'login_form': case 'wp_authenticate_user':
+      $name = 'login';
+      break;
+    case 'lostpassword_form': case 'allow_password_reset':
+      $name = 'lostp';
+      break;
+  }
+  return 'better_captcha_' . $name;
+}
+
+//output the captcha field
+function better_capt_display_captcha() {
   $settings = get_option('better-captcha-settings');
   $skey = $settings['better-captcha-site-key'] ?: '';
   $sssh = $settings['better-captcha-secret-key'] ?: '';
-  $them = $settings['better-captcha-theme'] ?: 'light';
-  $size = $settings['better-captcha-size'] ?: 'normal';
-  return ($skey!=='' && $sssh!=='' ? '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>' : '');
-}
-
-/*
---------------------- Login Form ---------------------
-*/
-
-function better_capt_display_login_form() {
-  $capt = better_capt_display_hcaptcha();
-  if($capt!=='') {
-    echo $capt . wp_nonce_field('better_captcha_login', 'better_captcha_nonce', true, false);
+  if($skey!=='' && $sssh!=='') {
+    $them = $settings['better-captcha-theme'] ?: 'light';
+    $size = $settings['better-captcha-size'] ?: 'normal';    
+    echo '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>';
+    echo wp_nonce_field(better_capt_nonce_name(), 'better_captcha_nonce', true, false);
   }
 }
 
-function better_capt_verify_login_form($user, $password) {
-  if(isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'],'better_captcha_login') && isset($_POST['h-captcha-response'])) {
+//verify the captcha value
+function better_capt_verify_captcha($par1) {
+  if(isset($_POST['better_captcha_nonce']) && wp_verify_nonce($_POST['better_captcha_nonce'], better_capt_nonce_name()) && isset($_POST['h-captcha-response'])) {
     $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
     if($resp!=='') {
       $settings = get_option('better-captcha-settings');
@@ -248,7 +282,7 @@ function better_capt_verify_login_form($user, $password) {
         $body = wp_remote_get('https://hcaptcha.com/siteverify?secret=' . $sssh . '&response=' . $resp);
         $data = json_decode($body["body"], true);
         if($data["success"]==true) {
-          return $user;
+          return $par1;
         } 
       }
     }
