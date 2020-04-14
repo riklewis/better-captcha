@@ -224,7 +224,7 @@ function better_capt_display_hcaptcha() {
   $sssh = $settings['better-captcha-secret-key'] ?: '';
   $them = $settings['better-captcha-theme'] ?: 'light';
   $size = $settings['better-captcha-size'] ?: 'normal';
-  return ($skey!=='' && $sssh!=='' ? '<div class="better-captcha h-captcha" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>' : '');
+  return ($skey!=='' && $sssh!=='' ? '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>' : '');
 }
 
 /*
