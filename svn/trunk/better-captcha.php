@@ -27,6 +27,9 @@ function better_capt_menus() {
 function better_capt_settings() {
   register_setting('better-captcha','better-captcha-settings');
 
+  add_settings_section('better-captcha-general', __('Settings', 'better-capt-text'), 'better_capt_general', 'better-captcha');
+  add_settings_field('better-captcha-general-mode', __('Captcha Mode', 'better-capt-text'), 'better_capt_general_mode', 'better-captcha', 'better-captcha-general');
+
 	add_settings_section('better-captcha-account', __('hCaptcha Account', 'better-capt-text'), 'better_capt_account', 'better-captcha');
 	add_settings_field('better-captcha-site-key', __('hCaptcha Site Key', 'better-capt-text'), 'better_capt_site_key', 'better-captcha', 'better-captcha-account');
 	add_settings_field('better-captcha-secret-key', __('hCaptcha Secret Key', 'better-capt-text'), 'better_capt_secret_key', 'better-captcha', 'better-captcha-account');
@@ -43,6 +46,7 @@ function better_capt_settings() {
 
 //allow the settings to be stored
 add_filter('whitelist_options', function($whitelist_options) {
+  $whitelist_options['better-captcha'][] = 'better-captcha-general-mode';
   $whitelist_options['better-captcha'][] = 'better-captcha-site-key';
   $whitelist_options['better-captcha'][] = 'better-captcha-secret-key';
   $whitelist_options['better-captcha'][] = 'better-captcha-theme';
@@ -137,9 +141,25 @@ function better_capt_badge_maria() {
 }
 
 //define output for settings section
+function better_capt_general() {
+  echo '<hr>';
+  echo '<p>General plugin settings.</p>';
+}
+
+//defined output for settings
+function better_capt_general_mode() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-general-mode'] ?: 'hcapt';
+	echo '<select id="better-captcha-general-mode" name="better-captcha-settings[better-captcha-general-mode]">';
+	better_capt_create_option($value, 'hcapt', __('hCaptcha (account required)', 'better-capt-text'), true);
+	better_capt_create_option($value, 'maths', __('Simple Maths Questions', 'better-capt-text'), true);
+	echo '</select>';
+}
+
+//define output for settings section
 function better_capt_account() {
   echo '<hr>';
-  echo '<p>Please sign up for a free <a href="https://bettersecurity.co/hcaptcha/" target="_blank">hCaptcha</a> account to get your site key and secret key.</p>';
+  echo '<p>Please sign up for a free <a href="https://bettersecurity.co/hcaptcha/" target="_blank">hCaptcha</a> account to get your site key and secret key (not required for simple maths questions mode).</p>';
 }
 
 //defined output for settings
@@ -232,10 +252,11 @@ function better_capt_create_option($def,$val,$rep,$boo) {
 //initialisation
 function better_capt_init() {
   $settings = get_option('better-captcha-settings');
+  $mode = $settings['better-captcha-general-mode'] ?: 'hcapt';
   $skey = $settings['better-captcha-site-key'] ?: '';
   $sssh = $settings['better-captcha-secret-key'] ?: '';
   $enqu = false;
-  if($skey!=='' && $sssh!=='') {
+  if($mode==='maths' || ($mode==='hcapt' && $skey!=='' && $sssh!=='')) {
     //login form
     if(($settings['better-captcha-place-login'] ?: 'YES')==='YES') {
       add_action('login_enqueue_scripts', 'better_capt_scripts');
@@ -267,7 +288,7 @@ function better_capt_init() {
     // TODO: add more
 
     //include external script
-    if($enqu) {
+    if($enqu && $mode==='hcapt') {
       add_action('wp_enqueue_scripts', 'better_capt_scripts');
     }
   }
@@ -303,28 +324,79 @@ function better_capt_nonce_name() {
 //output the captcha field
 function better_capt_display_captcha() {
   $settings = get_option('better-captcha-settings');
-  $skey = $settings['better-captcha-site-key'] ?: '';
-  $sssh = $settings['better-captcha-secret-key'] ?: '';
-  if($skey!=='' && $sssh!=='') {
-    $them = $settings['better-captcha-theme'] ?: 'light';
-    $size = $settings['better-captcha-size'] ?: 'normal';
-    echo '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>';
+  $mode = $settings['better-captcha-general-mode'] ?: 'hcapt';
+  if($mode==='hcapt') {
+    $skey = $settings['better-captcha-site-key'] ?: '';
+    $sssh = $settings['better-captcha-secret-key'] ?: '';
+    if($skey!=='' && $sssh!=='') {
+      $them = $settings['better-captcha-theme'] ?: 'light';
+      $size = $settings['better-captcha-size'] ?: 'normal';
+      echo '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>';
+      echo wp_nonce_field(better_capt_nonce_name(), 'better_captcha_nonce', true, false);
+    }
+  }
+  if($mode==='maths') {
+    $ope = rand(1,2);
+    switch($ope) {
+      case 1: //add (+)
+        $a = rand(1,50);
+        $b = rand(1,50);
+        $val = $a+$b;
+        $lab = $a . ' + ' . $b;
+        break;
+      case 2: //subtract (-)
+        $a = rand(1,100);
+        $b = rand(1,100);
+        $val = max($a,$b)-min($a,$b);
+        $lab = max($a,$b) . ' - ' . min($a,$b);
+        break;
+    }
+    $guid = better_capt_guid();
+    set_transient("better_capt_" . $guid, $val, MINUTE_IN_SECONDS*2);
+    echo '<p class="better-capt-wrap">';
+    echo '  <label for="better-capt">What is ' . $lab  . '?</label>';
+    echo '  <input type="text" name="better_captcha_value" id="better-capt" aria-describedby="login_error" class="input" value="" size="20">';
+    echo '  <input type="hidden" name="better_captcha_guid" value="' . $guid . '">';
+    echo '</p>';
     echo wp_nonce_field(better_capt_nonce_name(), 'better_captcha_nonce', true, false);
   }
 }
 
+//create GUID-ish
+function better_capt_guid() {
+	return rtrim(strtr(base64_encode(rand() . uniqid('',true)), '+/', '-_'), '=');
+}
+
 //verify the captcha value
 function better_capt_verify_captcha($par1) {
-  if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce(sanitize_text_field($_POST['better_captcha_nonce']), better_capt_nonce_name())) {
-    $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
-    if($resp!=='') {
-      $settings = get_option('better-captcha-settings');
-      $sssh = $settings['better-captcha-secret-key'] ?: '';
-      if($sssh!=='') {
-        $body = wp_remote_get('https://hcaptcha.com/siteverify?secret=' . $sssh . '&response=' . $resp);
-        $data = json_decode($body["body"], true);
-        if($data["success"]==true) {
-          return $par1; //captcha verified successfully
+  $settings = get_option('better-captcha-settings');
+  $mode = $settings['better-captcha-general-mode'] ?: 'hcapt';
+  if($mode==='hcapt') {
+    if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce(sanitize_text_field($_POST['better_captcha_nonce']), better_capt_nonce_name())) {
+      $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
+      if($resp!=='') {
+        $sssh = $settings['better-captcha-secret-key'] ?: '';
+        if($sssh!=='') {
+          $body = wp_remote_get('https://hcaptcha.com/siteverify?secret=' . $sssh . '&response=' . $resp);
+          $data = json_decode($body["body"], true);
+          if($data["success"]==true) {
+            return $par1; //captcha verified successfully
+          }
+        }
+      }
+    }
+  }
+  if($mode==='maths') {
+    if(isset($_POST['better_captcha_value']) && isset($_POST['better_captcha_guid']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce(sanitize_text_field($_POST['better_captcha_nonce']), better_capt_nonce_name())) {
+      $guid = htmlspecialchars(sanitize_text_field($_POST['better_captcha_guid']));
+      if($guid!=='') {
+        $val = htmlspecialchars(sanitize_text_field($_POST['better_captcha_value']));
+        if($val!=='') {
+          $was = get_transient("better_capt_" . $guid);
+          if($was!==false && $val===$was) {
+            delete_transient("better_capt_" . $guid);
+            return $par1; //captcha verified successfully
+          }
         }
       }
     }
