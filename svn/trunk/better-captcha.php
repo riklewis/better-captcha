@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name:  Better Captcha
-Description:  Stop bad bots from attacking your forms using hCaptcha
-Version:      1.1
+Description:  Stop bad bots from attacking your forms using hCaptcha or simple maths questions
+Version:      2.0
 Author:       Better Security
 Author URI:   https://bettersecurity.co
 License:      GPL3
@@ -26,18 +26,18 @@ function better_capt_menus() {
 //add the settings
 function better_capt_settings() {
   register_setting('better-captcha','better-captcha-settings');
-  
+
 	add_settings_section('better-captcha-account', __('hCaptcha Account', 'better-capt-text'), 'better_capt_account', 'better-captcha');
 	add_settings_field('better-captcha-site-key', __('hCaptcha Site Key', 'better-capt-text'), 'better_capt_site_key', 'better-captcha', 'better-captcha-account');
 	add_settings_field('better-captcha-secret-key', __('hCaptcha Secret Key', 'better-capt-text'), 'better_capt_secret_key', 'better-captcha', 'better-captcha-account');
 	add_settings_field('better-captcha-theme', __('hCaptcha Theme', 'better-capt-text'), 'better_capt_theme', 'better-captcha', 'better-captcha-account');
   add_settings_field('better-captcha-size', __('hCaptcha Size', 'better-capt-text'), 'better_capt_size', 'better-captcha', 'better-captcha-account');
-  
+
   add_settings_section('better-captcha-places', __('Show Captcha', 'better-capt-text'), 'better_capt_places', 'better-captcha');
-  add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');  
-  add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');  
-  add_settings_field('better-captcha-place-regis', __('Register Form', 'better-capt-text'), 'better_capt_place_regis', 'better-captcha', 'better-captcha-places');  
-  add_settings_field('better-captcha-place-comme', __('Comment Form', 'better-capt-text'), 'better_capt_place_comme', 'better-captcha', 'better-captcha-places');  
+  add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');
+  add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');
+  add_settings_field('better-captcha-place-regis', __('Register Form', 'better-capt-text'), 'better_capt_place_regis', 'better-captcha', 'better-captcha-places');
+  add_settings_field('better-captcha-place-comme', __('Comment Form', 'better-capt-text'), 'better_capt_place_comme', 'better-captcha', 'better-captcha-places');
   // TODO: add more
 }
 
@@ -248,21 +248,21 @@ function better_capt_init() {
       $enqu = true;
       add_filter('lostpassword_form', 'better_capt_display_captcha');
       add_filter('allow_password_reset', 'better_capt_verify_captcha');
-    }    
+    }
 
     //register form
     if(($settings['better-captcha-place-regis'] ?: 'YES')==='YES') {
       $enqu = true;
       add_filter('register_form', 'better_capt_display_captcha');
       add_filter('registration_errors', 'better_capt_verify_captcha');
-    }    
+    }
 
     //comment form
     if(($settings['better-captcha-place-comme'] ?: 'YES')==='YES') {
       $enqu = true;
       add_filter('comment_form_after_fields', 'better_capt_display_captcha');
       add_filter('pre_comment_approved', 'better_capt_verify_captcha');
-    }        
+    }
 
     // TODO: add more
 
@@ -307,7 +307,7 @@ function better_capt_display_captcha() {
   $sssh = $settings['better-captcha-secret-key'] ?: '';
   if($skey!=='' && $sssh!=='') {
     $them = $settings['better-captcha-theme'] ?: 'light';
-    $size = $settings['better-captcha-size'] ?: 'normal';    
+    $size = $settings['better-captcha-size'] ?: 'normal';
     echo '<div class="better-captcha h-captcha h-captcha-' . $them . ' h-captcha-' . $size . '" data-sitekey="' . $skey . '" data-theme="' . $them . '" data-size="' . $size . '"></div>';
     echo wp_nonce_field(better_capt_nonce_name(), 'better_captcha_nonce', true, false);
   }
@@ -325,10 +325,10 @@ function better_capt_verify_captcha($par1) {
         $data = json_decode($body["body"], true);
         if($data["success"]==true) {
           return $par1; //captcha verified successfully
-        } 
+        }
       }
     }
-  } 
+  }
 
   //return error (depending on filter)
   $code = 'captcha_invalid';
@@ -338,7 +338,7 @@ function better_capt_verify_captcha($par1) {
       $par1->add($code, $mess);
       return $par1;
   }
-  return new WP_Error($code, $mess, 403); //other forms (eg. login) 
+  return new WP_Error($code, $mess, 403); //other forms (eg. login)
 }
 
 /*
