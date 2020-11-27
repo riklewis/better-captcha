@@ -2,7 +2,7 @@
 /*
 Plugin Name:  Better Captcha
 Description:  Stop bad bots from attacking your forms using hCaptcha or simple maths questions
-Version:      2.0
+Version:      2.1
 Author:       Better Security
 Author URI:   https://bettersecurity.co
 License:      GPL3
@@ -36,6 +36,11 @@ function better_capt_settings() {
 	add_settings_field('better-captcha-theme', __('hCaptcha Theme', 'better-capt-text'), 'better_capt_theme', 'better-captcha', 'better-captcha-account');
   add_settings_field('better-captcha-size', __('hCaptcha Size', 'better-capt-text'), 'better_capt_size', 'better-captcha', 'better-captcha-account');
 
+  add_settings_section('better-captcha-maths', __('Simple Maths Questions', 'better-capt-text'), 'better_capt_maths', 'better-captcha');
+  add_settings_field('better-captcha-maths-words', __('Numbers or Words', 'better-capt-text'), 'better_capt_maths_words', 'better-captcha', 'better-captcha-maths');
+  add_settings_field('better-captcha-maths-complex', __('Complexity', 'better-capt-text'), 'better_capt_maths_complex', 'better-captcha', 'better-captcha-maths');
+  add_settings_field('better-captcha-maths-timeout', __('Timeout (seconds)', 'better-capt-text'), 'better_capt_maths_timeout', 'better-captcha', 'better-captcha-maths');
+
   add_settings_section('better-captcha-places', __('Show Captcha', 'better-capt-text'), 'better_capt_places', 'better-captcha');
   add_settings_field('better-captcha-place-login', __('Login Form', 'better-capt-text'), 'better_capt_place_login', 'better-captcha', 'better-captcha-places');
   add_settings_field('better-captcha-place-lastp', __('Lost Password Form', 'better-capt-text'), 'better_capt_place_lostp', 'better-captcha', 'better-captcha-places');
@@ -51,6 +56,9 @@ add_filter('whitelist_options', function($whitelist_options) {
   $whitelist_options['better-captcha'][] = 'better-captcha-secret-key';
   $whitelist_options['better-captcha'][] = 'better-captcha-theme';
   $whitelist_options['better-captcha'][] = 'better-captcha-size';
+  $whitelist_options['better-captcha'][] = 'better-captcha-maths-words';
+  $whitelist_options['better-captcha'][] = 'better-captcha-maths-complex';
+  $whitelist_options['better-captcha'][] = 'better-captcha-maths-timeout';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-login';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-lostp';
   $whitelist_options['better-captcha'][] = 'better-captcha-place-regis';
@@ -88,10 +96,10 @@ function better_capt_show_settings() {
 function better_capt_badge_php() {
   $ver = better_capt_phpversion();
   $col = "critical";
-  if(version_compare($ver,'7.2','>=')) {
+  if(version_compare($ver,'7.3','>=')) {
     $col = "important";
   }
-  if(version_compare($ver,'7.3','>=')) {
+  if(version_compare($ver,'7.4','>=')) {
     $col = "success";
   }
   return 'https://img.shields.io/badge/PHP-' . $ver . '-' . $col . '.svg?logo=php&style=for-the-badge';
@@ -194,6 +202,36 @@ function better_capt_size() {
   better_capt_create_option($value,"normal",__("Normal size", 'better-capt-text'),true);
   better_capt_create_option($value,"compact",__("Compact size", 'better-capt-text'),true);
   echo '</select>';
+}
+
+//define output for settings section
+function better_capt_maths() {
+  echo '<hr>';
+}
+
+//defined output for settings
+function better_capt_maths_words() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-maths-words'] ?: 'numb';
+  echo '<select id="better-captcha-maths-words" name="better-captcha-settings[better-captcha-maths-words]">';
+  better_capt_create_option($value,"numb",__("Numbers only", 'better-capt-text'),true);
+  better_capt_create_option($value,"word",__("Words only", 'better-capt-text'),true);
+  better_capt_create_option($value,"both",__("Numbers and words", 'better-capt-text'),true);
+  echo '</select>';
+}
+
+//defined output for settings
+function better_capt_maths_complex() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-maths-complex'] ?: '100';
+  echo '<input id="better-captcha-maths-complex" name="better-captcha-settings[better-captcha-maths-complex]" type="number" value="' . $value . '" min="10" min="200">';
+}
+
+//defined output for settings
+function better_capt_maths_timeout() {
+	$settings = get_option('better-captcha-settings');
+	$value = $settings['better-captcha-maths-timeout'] ?: '120';
+  echo '<input id="better-captcha-maths-timeout" name="better-captcha-settings[better-captcha-maths-timeout]" type="number" value="' . $value . '" min="30" min="600">';
 }
 
 //define output for settings section
@@ -336,23 +374,30 @@ function better_capt_display_captcha() {
     }
   }
   if($mode==='maths') {
+    $max = intval($settings['better-captcha-maths-complex'] ?: 100);
+    $mod = $settings['better-captcha-maths-words'] ?: 'numb';
+    if($mod!=='numb') {
+      $nfs = new NumberFormatter("en", NumberFormatter::SPELLOUT);
+    }
     $ope = rand(1,2);
     switch($ope) {
       case 1: //add (+)
-        $a = rand(1,50);
-        $b = rand(1,50);
+        $max = intval($max/2);
+        $a = rand(1,$max);
+        $b = rand(1,$max);
         $val = $a+$b;
-        $lab = $a . ' + ' . $b;
+        $lab = ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? $nfs->format($a) : $a) . ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? ' plus ' : ' + ') . ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? $nfs->format($b) : $b);
         break;
       case 2: //subtract (-)
-        $a = rand(1,100);
-        $b = rand(1,100);
+        $a = rand(1,$max);
+        $b = rand(1,$max);
         $val = max($a,$b)-min($a,$b);
-        $lab = max($a,$b) . ' - ' . min($a,$b);
+        $lab = ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? $nfs->format(max($a,$b)) : max($a,$b)) . ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? ' minus ' : ' - ') . ($mod==='word' || ($mod==='both' && rand(1,2)===1) ? $nfs->format(min($a,$b)) : min($a,$b));
         break;
     }
     $guid = better_capt_guid();
-    set_transient("better_capt_" . $guid, $val, MINUTE_IN_SECONDS*2);
+    $secs = intval($settings['better-captcha-maths-timeout'] ?: 120);
+    set_transient("better_capt_" . $guid, $val, $secs);
     echo '<p class="better-capt-wrap">';
     echo '  <label for="better-capt">What is ' . $lab  . '?</label>';
     echo '  <input type="text" name="better_captcha_value" id="better-capt" aria-describedby="login_error" class="input" value="" size="20">';
@@ -371,6 +416,7 @@ function better_capt_guid() {
 function better_capt_verify_captcha($par1) {
   $settings = get_option('better-captcha-settings');
   $mode = $settings['better-captcha-general-mode'] ?: 'hcapt';
+  $titl = 'invalid';
   if($mode==='hcapt') {
     if(isset($_POST['h-captcha-response']) && isset($_POST['better_captcha_nonce']) && wp_verify_nonce(sanitize_text_field($_POST['better_captcha_nonce']), better_capt_nonce_name())) {
       $resp = htmlspecialchars(sanitize_text_field($_POST['h-captcha-response']));
@@ -393,9 +439,12 @@ function better_capt_verify_captcha($par1) {
         $val = htmlspecialchars(sanitize_text_field($_POST['better_captcha_value']));
         if($val!=='') {
           $was = get_transient("better_capt_" . $guid);
-          if($was!==false && $val===$was) {
+          if($was!==false && $val==$was) { //don't check type
             delete_transient("better_capt_" . $guid);
             return $par1; //captcha verified successfully
+          }
+          if($was===false) {
+            $titl = 'timeout';
           }
         }
       }
@@ -404,7 +453,7 @@ function better_capt_verify_captcha($par1) {
 
   //return error (depending on filter)
   $code = 'captcha_invalid';
-  $mess = __("<strong>Error</strong>: Captcha invalid - are you human?", 'better-capt-text');
+  $mess = __("<strong>Error</strong>: Captcha " . $titl . " - please try again", 'better-capt-text');
   switch(better_capt_nonce_name()) {
     case 'regis': //registration form
       $par1->add($code, $mess);

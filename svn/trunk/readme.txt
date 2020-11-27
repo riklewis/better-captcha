@@ -2,7 +2,7 @@
 Contributors: bettersecurity, riklewis
 Tags: better, security, captcha, hcaptcha, recaptcha, bots, maths
 Requires at least: 4.0
-Tested up to: 5.5
+Tested up to: 5.6
 Stable tag: trunk
 Requires PHP: 7.0
 License: GPLv3
